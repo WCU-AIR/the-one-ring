@@ -1,7 +1,16 @@
 #!/bin/bash
 set -e
 
-# QEMU and OpenOCD from spack-stack. Cross-compilers from apt (not in Spack in practice).
+# shellcheck source=/dev/null
+. /build/bootstrap.sh
+
+if [ -d /opt/spack-mirror ] && [ -n "$(ls -A /opt/spack-mirror 2>/dev/null)" ]; then
+  spack mirror add local file:///opt/spack-mirror 2>/dev/null || true
+fi
+
+spack install qemu openocd
+
+# Cross-compilers from apt (not in Spack in practice)
 DEBIAN_FRONTEND=noninteractive apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     gcc-riscv64-unknown-elf \

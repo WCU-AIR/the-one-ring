@@ -1,6 +1,10 @@
 software/*
 home/*
 
+# Spack mirror buildcache (populated by spack-mirror service); keep directory
+docker/spack-mirror-cache/*
+!docker/spack-mirror-cache/.gitkeep
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

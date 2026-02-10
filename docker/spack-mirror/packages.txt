@@ -1,0 +1,15 @@
+# Curated Spack packages; spack-mirror installs these and pushes to the mirror volume.
+gdb
+valgrind
+py-six
+openmpi
+python
+py-numpy
+py-matplotlib
+py-mpi4py ^openmpi
+py-pandas
+py-pyarrow
+py-scikit-learn
+openjdk
+qemu
+openocd

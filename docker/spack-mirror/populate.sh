@@ -1,6 +1,5 @@
 #!/bin/bash
-# Populate the Spack mirror volume with a buildcache of the curated packages.
-# Run once (or periodically) to predownload/prebuild; other services can use the volume as a mirror.
+# Run when container starts with mirror volume mounted: push image's Spack installs to volume.
 set -e
 
 . /opt/spack/share/spack/setup-env.sh

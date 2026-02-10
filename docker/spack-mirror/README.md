@@ -1,25 +1,26 @@
 # Spack mirror service
 
-Separate **local Spack repository** service: it predownloads/prebuilds the curated Spack packages and writes them to a volume as a buildcache. Other builds or services can use that volume as a Spack mirror.
+Local Spack repository service: **FROM base** (no spack-stack). The image installs Spack and the curated packages from `packages.txt`; when the container runs with the mirror volume mounted, it pushes a buildcache to that directory so topic services can read from it at build time.
 
-## Usage
+## Build order
 
-1. Build the stack and mirror image:
+1. Build **base** and **spack-mirror** first:
    ```bash
-   docker compose -f docker-compose.amd64.yml build spack-stack spack-mirror
+   docker compose -f docker-compose.amd64.yml build base spack-mirror
    ```
 
-2. Populate the mirror (run once, or when you add/change packages in `spack-stack/spack-packages.txt`):
+2. Populate the mirror (run once, or when `packages.txt` changes):
    ```bash
    docker compose -f docker-compose.amd64.yml --profile tools run --rm spack-mirror
    ```
-   This uses the `spack-stack` image’s already-installed packages and runs `spack buildcache push` into the `spack-mirror` volume.
+   This writes the buildcache into `docker/spack-mirror-cache/` (bind-mounted at `/opt/spack-mirror`).
 
-3. The `spack-mirror` volume is filled with the buildcache. To use it in another build or container, mount the volume and point Spack at it, e.g.:
+3. Build topic images with the mirror mounted so `spack install` uses the cache:
    ```bash
-   spack mirror add local file:///opt/spack-mirror
-   spack buildcache list local
-   spack install --use-cache <spec>
+   DOCKER_BUILDKIT=1 ./scripts/build-topics.sh
    ```
+   Or use `docker compose build`; topic Dockerfiles use `RUN --mount=type=bind,source=spack-mirror-cache,target=/opt/spack-mirror` so the mirror is available when the context is `./docker`.
 
-The service is under the `tools` profile so it is not started with `docker compose up -d`; run it explicitly with `docker compose -f docker-compose.amd64.yml --profile tools run --rm spack-mirror` when you want to refresh the mirror.
+## Updating the package list
+
+Edit `packages.txt`, rebuild the spack-mirror image, run the container again to refresh the cache, then rebuild topic images.

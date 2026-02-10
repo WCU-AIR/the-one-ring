@@ -1,7 +1,15 @@
 #!/bin/bash
 set -e
 
-# All Spack packages (openjdk, python, py-pandas, py-pyarrow) from spack-stack.
+# shellcheck source=/dev/null
+. /build/bootstrap.sh
+
+if [ -d /opt/spack-mirror ] && [ -n "$(ls -A /opt/spack-mirror 2>/dev/null)" ]; then
+  spack mirror add local file:///opt/spack-mirror 2>/dev/null || true
+fi
+
+spack install openjdk python py-pandas py-pyarrow
+
 cat > /etc/profile.d/spack-big-data.sh << 'SPACK_LOAD'
 . /opt/spack/share/spack/setup-env.sh
 spack load openjdk

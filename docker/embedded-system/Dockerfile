@@ -1,10 +1,12 @@
-# Topic: embedded systems. Builds on spack-stack; apt for cross-compilers + profile.d.
-FROM linhbngo/onering-amd64:spack-stack
+# Topic: embedded systems. FROM base; normal Spack workflow, reads from spack-mirror at build.
+FROM linhbngo/onering-amd64:base
 
 USER root
+COPY spack/bootstrap.sh /build/
 COPY embedded-system/install.sh /build/
 
-RUN chmod 755 /build/install.sh && /build/install.sh && rm -rf /build
+RUN --mount=type=bind,source=spack-mirror-cache,target=/opt/spack-mirror \
+    chmod 755 /build/bootstrap.sh /build/install.sh && /build/install.sh && rm -rf /build
 
 USER student
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
