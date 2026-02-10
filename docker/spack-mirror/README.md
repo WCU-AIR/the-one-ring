@@ -1,21 +1,23 @@
-# Spack mirror service
+# Spack mirror service (source mirror only)
 
-Local Spack repository service: **FROM base** (no spack-stack). The image installs Spack and the curated packages from `packages.txt`; when the container runs with the mirror volume mounted, it pushes a buildcache to that directory so topic services can read from it at build time.
+**FROM base.** The image only bootstraps Spack (no package installs). When the container runs with the mirror volume mounted, the entrypoint runs `spack mirror create` to download **source tarballs** for the specs in `packages.txt` into the mirror. No buildcache or pre-installed packages—the mirror is raw source storage only.
+
+Topic images then mount this mirror at build time; when they run `spack install`, Spack fetches sources from the mirror and builds locally. Each topic image only contains what that topic needs (no extra storage for unused packages).
 
 ## Build order
 
 1. Build **base** and **spack-mirror** first:
    ```bash
-   docker compose -f docker-compose.amd64.yml build base spack-mirror
+   docker compose build base spack-mirror
    ```
 
-2. Populate the mirror (run once, or when `packages.txt` changes):
+2. Populate the mirror with sources (run once, or when `packages.txt` changes):
    ```bash
-   docker compose -f docker-compose.amd64.yml --profile tools run --rm spack-mirror
+   docker compose --profile tools run --rm spack-mirror
    ```
-   This writes the buildcache into `docker/spack-mirror-cache/` (bind-mounted at `/opt/spack-mirror`).
+   This downloads source tarballs into `docker/spack-mirror-cache/` (bind-mounted at `/opt/spack-mirror`).
 
-3. Build topic images with the mirror mounted so `spack install` uses the cache:
+3. Build topic images with the mirror mounted so `spack install` fetches sources from the mirror and builds locally:
    ```bash
    DOCKER_BUILDKIT=1 ./scripts/build-topics.sh
    ```
@@ -23,4 +25,4 @@ Local Spack repository service: **FROM base** (no spack-stack). The image instal
 
 ## Updating the package list
 
-Edit `packages.txt`, rebuild the spack-mirror image, run the container again to refresh the cache, then rebuild topic images.
+Edit `packages.txt`, rebuild the spack-mirror image, run the container again to refresh the source mirror, then rebuild topic images.

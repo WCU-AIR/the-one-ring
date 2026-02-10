@@ -2,7 +2,7 @@
 set -e
 
 apt update
-DEBIAN_FRONTEND=noninteractive apt install -y curl sudo openssh-server
+DEBIAN_FRONTEND=noninteractive apt install -y curl gfortran openssh-server sudo
 
 source /build/base.config
 idnumber=1001

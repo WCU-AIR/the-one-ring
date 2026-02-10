@@ -1,0 +1,136 @@
+# base and spack-mirror built first. Topic services FROM base, use Spack and read from mirror at build.
+# All images are linux/amd64 only; on Apple Silicon use this file and Docker will emulate.
+# 1) Build: docker compose build base spack-mirror
+# 2) Populate mirror: docker compose --profile tools run --rm spack-mirror
+# 3) Build topics (with mirror mount): DOCKER_BUILDKIT=1 ./scripts/build-topics.sh
+#    Or: docker compose build  (topic builds may not use cache if no mount)
+# Override data: DATA_PATH=/path/on/host docker compose up -d
+
+services:
+  base:
+    build:
+      context: ./docker
+      dockerfile: base/Dockerfile
+    image: linhbngo/onering-amd64:base
+    command: ["true"]
+
+  spack-mirror:
+    build:
+      context: ./docker
+      dockerfile: spack-mirror/Dockerfile
+    image: linhbngo/onering-amd64:spack-mirror
+    volumes:
+      - ./docker/spack-mirror-cache:/opt/spack-mirror
+    depends_on: [base]
+    restart: "no"
+    profiles:
+      - tools
+
+  ide:
+    build:
+      context: ./docker
+      dockerfile: ide/Dockerfile
+    image: linhbngo/onering-amd64:ide
+    container_name: ide
+    depends_on: [base]
+    volumes:
+      - .:/workspace
+      - home:/home
+      - software:/software
+      - ${DATA_PATH:-./data}:/data
+    ports:
+      - "18088:8088"
+    mem_limit: 1024m
+    cpus: 1.0
+
+  system-programming:
+    build:
+      context: ./docker
+      dockerfile: system-programming/Dockerfile
+    image: linhbngo/onering-amd64:system-programming
+    container_name: system-programming
+    volumes:
+      - .:/workspace
+      - home:/home
+      - software:/software
+      - ${DATA_PATH:-./data}:/data
+    ports:
+      - "22331:22"
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp=unconfined
+    mem_limit: 2048m
+    cpus: 2.0
+
+  parallel-computing:
+    build:
+      context: ./docker
+      dockerfile: parallel-computing/Dockerfile
+    image: linhbngo/onering-amd64:parallel-computing
+    container_name: parallel-computing
+    volumes:
+      - .:/workspace
+      - home:/home
+      - software:/software
+      - ${DATA_PATH:-./data}:/data
+    ports:
+      - "22466:22"
+    mem_limit: 2048m
+    cpus: 2.0
+
+  big-data:
+    build:
+      context: ./docker
+      dockerfile: big-data/Dockerfile
+    image: linhbngo/onering-amd64:big-data
+    container_name: big-data
+    volumes:
+      - .:/workspace
+      - home:/home
+      - software:/software
+      - ${DATA_PATH:-./data}:/data
+    ports:
+      - "22418:22"
+    mem_limit: 2048m
+    cpus: 2.0
+
+  machine-learning:
+    build:
+      context: ./docker
+      dockerfile: machine-learning/Dockerfile
+    image: linhbngo/onering-amd64:machine-learning
+    container_name: machine-learning
+    volumes:
+      - .:/workspace
+      - home:/home
+      - software:/software
+      - ${DATA_PATH:-./data}:/data
+    ports:
+      - "22467:22"
+    mem_limit: 2048m
+    cpus: 2.0
+
+  embedded-system:
+    build:
+      context: ./docker
+      dockerfile: embedded-system/Dockerfile
+    image: linhbngo/onering-amd64:embedded-system
+    container_name: embedded-system
+    volumes:
+      - .:/workspace
+      - home:/home
+      - software:/software
+      - ${DATA_PATH:-./data}:/data
+    ports:
+      - "22432:22"
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp=unconfined
+    mem_limit: 2048m
+    cpus: 2.0
+
+volumes:
+  home:
+  software:

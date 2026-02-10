@@ -1,4 +1,4 @@
-# Curated Spack packages; spack-mirror installs these and pushes to the mirror volume.
+# Curated Spack specs; spack-mirror runs "spack mirror create" to store source tarballs only.
 gdb
 valgrind
 py-six
@@ -12,4 +12,3 @@ py-pyarrow
 py-scikit-learn
 openjdk
 qemu
-openocd

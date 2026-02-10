@@ -1,14 +1,10 @@
 #!/bin/bash
-# Bootstrap Spack and install all packages from list (into the image). No push here.
+# Bootstrap Spack only. No package installs; the mirror holds source tarballs only.
+# populate.sh (at container run) uses "spack mirror create" to fill the mirror with sources.
 set -e
 
 # shellcheck source=/dev/null
 . /build/bootstrap.sh
 
-while IFS= read -r line || [ -n "$line" ]; do
-  line="${line%%#*}"
-  line="${line#"${line%%[![:space:]]*}}"
-  line="${line%"${line##*[![:space:]]}}"
-  [ -z "$line" ] && continue
-  spack install "$line"
-done < /build/packages.txt
+# Keep package list for runtime so populate.sh can run "spack mirror create" for each spec.
+cp /build/packages.txt /opt/spack-mirror-packages.txt

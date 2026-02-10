@@ -1,5 +1,6 @@
 software/*
 home/*
+data/*
 
 # Spack mirror buildcache (populated by spack-mirror service); keep directory
 docker/spack-mirror-cache/*

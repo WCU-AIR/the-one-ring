@@ -1,5 +1,6 @@
 # Topic: system programming. FROM base; normal Spack workflow, reads from spack-mirror at build.
 FROM linhbngo/onering-amd64:base
+ENV SPACK_ROOT=/opt/spack
 
 USER root
 COPY spack/bootstrap.sh /build/
