@@ -1,20 +1,74 @@
+# base -> spack-stack -> topic services. spack-mirror = local Spack repo (run once to populate).
+# Build: docker compose -f docker-compose.amd64.yml build
+# Populate mirror: docker compose -f docker-compose.amd64.yml --profile tools run --rm spack-mirror
+# Override data: DATA_PATH=/path/on/host docker compose -f docker-compose.amd64.yml up -d
+
 services:
   base:
     build:
-      context: ./docker/base
+      context: ./docker
+      dockerfile: base/Dockerfile
     image: linhbngo/onering-amd64:base
-    command: /bin/bash -c exit
+    command: ["true"]
 
-  csc331:
+  spack-stack:
     build:
-      context: ./docker/csc331
-    image: linhbngo/onering-amd64:csc331
-    container_name: csc331
+      context: ./docker
+      dockerfile: spack-stack/Dockerfile
+    image: linhbngo/onering-amd64:spack-stack
+    command: ["true"]
+    depends_on:
+      base:
+        condition: service_built
+
+  spack-mirror:
+    build:
+      context: ./docker
+      dockerfile: spack-mirror/Dockerfile
+    image: linhbngo/onering-amd64:spack-mirror
+    volumes:
+      - spack-mirror:/opt/spack-mirror
+    depends_on:
+      spack-stack:
+        condition: service_built
+    restart: "no"
+    profiles:
+      - tools
+
+  ide:
+    build:
+      context: ./docker
+      dockerfile: ide/Dockerfile
+    image: linhbngo/onering-amd64:ide
+    container_name: ide
+    depends_on:
+      base:
+        condition: service_built
     volumes:
       - .:/workspace
       - home:/home
+      - software:/software
+      - ${DATA_PATH:-./data}:/data
     ports:
       - "18088:8088"
+    mem_limit: 1024m
+    cpus: 1.0
+
+  system-programming:
+    build:
+      context: ./docker
+      dockerfile: system-programming/Dockerfile
+    image: linhbngo/onering-amd64:system-programming
+    container_name: system-programming
+    depends_on:
+      spack-stack:
+        condition: service_built
+    volumes:
+      - .:/workspace
+      - home:/home
+      - software:/software
+      - ${DATA_PATH:-./data}:/data
+    ports:
       - "22331:22"
     cap_add:
       - SYS_PTRACE
@@ -23,31 +77,87 @@ services:
     mem_limit: 2048m
     cpus: 2.0
 
-  466-cpn01:
+  parallel-computing:
     build:
-      context: ./docker/csc466
-    image: linhbngo/onering-amd64:csc466
-    container_name: cpn01
+      context: ./docker
+      dockerfile: parallel-computing/Dockerfile
+    image: linhbngo/onering-amd64:parallel-computing
+    container_name: parallel-computing
+    depends_on:
+      spack-stack:
+        condition: service_built
     volumes:
       - .:/workspace
       - home:/home
+      - software:/software
+      - ${DATA_PATH:-./data}:/data
     ports:
-      - "22"
+      - "22466:22"
     mem_limit: 2048m
     cpus: 2.0
 
-  466-cpn02:
+  big-data:
     build:
-      context: ./docker/csc466
-    image: linhbngo/onering-amd64:csc466
-    container_name: cpn02
+      context: ./docker
+      dockerfile: big-data/Dockerfile
+    image: linhbngo/onering-amd64:big-data
+    container_name: big-data
+    depends_on:
+      spack-stack:
+        condition: service_built
     volumes:
       - .:/workspace
       - home:/home
+      - software:/software
+      - ${DATA_PATH:-./data}:/data
     ports:
-      - "22"
+      - "22418:22"
+    mem_limit: 2048m
+    cpus: 2.0
+
+  machine-learning:
+    build:
+      context: ./docker
+      dockerfile: machine-learning/Dockerfile
+    image: linhbngo/onering-amd64:machine-learning
+    container_name: machine-learning
+    depends_on:
+      spack-stack:
+        condition: service_built
+    volumes:
+      - .:/workspace
+      - home:/home
+      - software:/software
+      - ${DATA_PATH:-./data}:/data
+    ports:
+      - "22467:22"
+    mem_limit: 2048m
+    cpus: 2.0
+
+  embedded-system:
+    build:
+      context: ./docker
+      dockerfile: embedded-system/Dockerfile
+    image: linhbngo/onering-amd64:embedded-system
+    container_name: embedded-system
+    depends_on:
+      spack-stack:
+        condition: service_built
+    volumes:
+      - .:/workspace
+      - home:/home
+      - software:/software
+      - ${DATA_PATH:-./data}:/data
+    ports:
+      - "22432:22"
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp=unconfined
     mem_limit: 2048m
     cpus: 2.0
 
 volumes:
   home:
+  software:
+  spack-mirror:
