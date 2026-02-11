@@ -11,7 +11,7 @@ volume. This allows for easier update/modification.
 
 ## Overview
 
-The main compose file organizes services by **topic**, shares state via **three volumes**, and uses **Spack** with a **local source mirror**: base and spack-mirror are built first; topic services use the base layer and a normal Spack workflow, fetching sources from the mirror at build time and building locally.
+The main compose file organizes services by **topic** and shares state via **home** and a shared **Spack install store** at `/software`. Topic services use the base layer and Spack; they **fetch sources from the network** at build time (no local mirror required) and install into the shared store so subsequent topic builds reuse dependencies. **Caches are cleaned** after each build (apt, Spack stage and cache) to avoid extra storage.
 
 ### Cloning repository
 
@@ -26,14 +26,15 @@ cd the-one-ring
 ### Build order
 
 1. **base** – Built first. Minimal runtime: Ubuntu, `sudo`, `openssh-server`, `curl`, `gfortran`, shared user (`student`, uid 1001).
-2. **spack-mirror** – Built second (depends on base). Image: FROM base; bootstraps Spack only (no package installs). When the container runs with the mirror volume mounted, it runs `spack mirror create` to download **source tarballs** for the specs in `docker/spack-mirror/packages.txt` into `docker/spack-mirror-cache/`. Mirror is source storage only—no buildcache or pre-installed packages. Run once to populate the mirror so topic builds can fetch sources from it.
-3. **Topic services** – Each FROM base; normal Spack workflow (bootstrap + `spack install`). At build time they mount the mirror and fetch sources from it, then build locally. Each topic installs only its packages and adds a `/etc/profile.d` script for `spack load`:
+2. **Topic services** – Each FROM base; Spack fetches **sources from the network** (no mirror required). At build time they mount a **shared Spack install store** at `/software` (`docker/spack-store`); the first topic you build populates it and **subsequent topic builds reuse** already-installed dependencies. Build topics one at a time; later builds are faster. After each topic build, **Spack stage and caches are cleaned** (`spack clean -s -c`) so they are not kept in the image. At runtime, `/software` is the same bind mount so containers see the shared installs. Each topic adds a `/etc/profile.d` script for `spack load`.
    - **system-programming** – gdb, valgrind, py-six, peda (GDB plugin).
    - **parallel-computing** – openmpi, python, py-numpy, py-matplotlib, py-mpi4py.
    - **big-data** – openjdk, python, py-pandas, py-pyarrow.
    - **machine-learning** – python, py-numpy, py-pandas, py-scikit-learn.
    - **embedded-system** – qemu (Spack); openocd, cross-compilers (riscv, arm) from apt.
-4. **ide** – FROM base only; runs **code-server**. No Spack.
+3. **ide** – FROM base only; runs **code-server**. No Spack.
+
+**Optional: spack-mirror** (profile `tools`) – If you want a local source mirror to avoid re-downloading tarballs or for offline use, build and run the spack-mirror service; topic builds do **not** require it by default.
 
 ### Platform
 
@@ -41,9 +42,11 @@ cd the-one-ring
 
 ### Shared volumes
 
-- **home**, **software** (Docker volumes) – Shared across services.
+- **home** (Docker volume) – Shared across services.
+- **software** – Bind mount `./docker/spack-store` at `/software`; shared **Spack install tree**. Topic builds write here; subsequent builds and all running containers see the same installs. Not in the repo (see `.gitignore`).
 - **data** (host mount) – Default `./data`; override with `DATA_PATH=/path/on/host`.
-- **Spack mirror** – Bind mount `./docker/spack-mirror-cache`; populated by the spack-mirror service with source tarballs only; mounted during topic builds so they fetch sources from the mirror and build locally.
+
+**Cache cleanup:** Each topic build runs `apt clean`, `rm -rf /var/lib/apt/lists/*` (in bootstrap) and `spack clean -s -c` (stage and cache) at the end so build caches are not kept in the image or on disk.
 
 ---
 
@@ -64,7 +67,7 @@ docker compose --progress=plain --ansi=never build base 2>&1 | tee logs/build-ba
 - Example build service `base` with logging for **Windows**
 
 ~~~
-docker compose --progress=plain --ansi=never build 2>&1 | Tee-Object -FilePath .\logs\build-base.log
+docker compose --progress=plain --ansi=never build base 2>&1 | Tee-Object -FilePath .\logs\build-base.log
 ~~~
 
 ### Service: base
@@ -87,50 +90,50 @@ The final expected outcome is:
 student
 ~~~
 
-### Service: spack-mirror
+### Service: spack-mirror (optional)
 
-We first build `spack-mirror`. This service will attempt to create a local 
-spack repository to be used for future installation for other services. 
-The custom package list can be modified via `packages.txt`. 
+Topic builds **do not require** a local mirror; they fetch sources from the network. If you want a local source mirror (e.g. for offline use or to avoid re-downloading tarballs), use the spack-mirror service (profile `tools`):
 
 ~~~bash
-docker compose build spack-mirror 2>&1 | tee logs/build-spack-mirror.log
-~~~
-
-Once everything is build, the test is also the initial first run, where 
-the tar packages are downloaded and cache. These will help with future 
-service runs/builds. 
-
-~~~bash
+docker compose build base spack-mirror
 docker compose --profile tools run --rm spack-mirror
 ~~~
 
-After this run, the content of `spack-mirror-cache` will be populated. 
-This content is not included in the repository. 
+This populates `docker/spack-mirror-cache/` with source tarballs. Topic Dockerfiles no longer mount the mirror by default; you can add it back in the Dockerfile and install script if you want topic builds to use it.
 
 ### Services: topical services
 
-The rest of the services can be build all at once or individually. To build 
-everything at once, run the following: 
+Topic images (system-programming, parallel-computing, big-data, machine-learning, embedded-system) can be built **one by name** or all at once using **docker compose**. No mirror required; Spack fetches sources from the network. Requires **base** and the shared store directory `docker/spack-store` (created automatically or add a `.gitkeep`).
 
-~~~
-DOCKER_BUILDKIT=1 ./scripts/build-topics.sh
+**Shared Spack store at `/software`:** Topic builds mount `docker/spack-store` at `/software` and Spack is configured to use it as the install tree. The **first** topic you build installs its packages (and dependencies) into that store. **Later** topic builds see those installs and reuse them instead of rebuilding, so subsequent builds are much faster. At runtime, the same directory is mounted at `/software` so all containers see the shared installs.
+
+**Build a single topic** (recommended: build one at a time)
+
+~~~bash
+docker compose --progress=plain --ansi=never build system-programming 2>&1 | tee logs/build-system-programming.log
 ~~~
 
-# Or build via compose (topic builds will use mirror if docker/spack-mirror-cache exists and is populated)
+Then build others; they will reuse packages already in `docker/spack-store`:
+
+~~~bash
+docker compose build parallel-computing
+docker compose build big-data
+# ...
+~~~
+
+**Build all topic services** (long run; later images still reuse the store)
+
+~~~bash
 docker compose build
-
-# Start IDE and topic services
-docker compose up -d ide system-programming parallel-computing
-
-# Override /data host path
-DATA_PATH=/mnt/shared/data docker compose up -d
 ~~~
+
+Valid service names: `system-programming`, `parallel-computing`, `big-data`, `machine-learning`, `embedded-system`.
+
+**Start services:** e.g. `docker compose up -d ide system-programming parallel-computing`. Override data path: `DATA_PATH=/mnt/shared/data docker compose up -d`.
 
 ### Updating the Spack stack
 
-- Edit `docker/spack-mirror/packages.txt` (one spec per line).
-- Rebuild spack-mirror: `docker compose build spack-mirror`.
-- Run spack-mirror again to refresh the cache: `docker compose --profile tools run --rm spack-mirror`.
-- Rebuild topic images (with `./scripts/build-topics.sh` or `docker compose build`).
+- To add or change packages, edit the topic’s `install.sh` (e.g. `docker/system-programming/install.sh`) and rebuild that topic: `docker compose build system-programming`.
+- Rebuild topic images as needed: `docker compose build [SERVICE]` or `docker compose build`.
+- (Optional) If you use spack-mirror: edit `docker/spack-mirror/packages.txt`, rebuild spack-mirror, run `docker compose --profile tools run --rm spack-mirror`, then rebuild topics.
 

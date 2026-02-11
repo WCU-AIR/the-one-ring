@@ -1,12 +1,14 @@
-# Spack mirror service (source mirror only)
+# Spack mirror service (optional, source mirror only)
+
+**Optional.** Topic builds **do not require** a local mirror; they fetch sources from the network by default. This service is for users who want a local source mirror (e.g. offline use or to avoid re-downloading tarballs).
 
 **FROM base.** The image only bootstraps Spack (no package installs). When the container runs with the mirror volume mounted, the entrypoint runs `spack mirror create` to download **source tarballs** for the specs in `packages.txt` into the mirror. No buildcache or pre-installed packages—the mirror is raw source storage only.
 
-Topic images then mount this mirror at build time; when they run `spack install`, Spack fetches sources from the mirror and builds locally. Each topic image only contains what that topic needs (no extra storage for unused packages).
+Topic Dockerfiles **do not** mount this mirror by default. To use it, you would need to add the mirror mount and `spack mirror add` back into the topic Dockerfiles and install scripts.
 
-## Build order
+## Build and populate (optional)
 
-1. Build **base** and **spack-mirror** first:
+1. Build **base** and **spack-mirror**:
    ```bash
    docker compose build base spack-mirror
    ```
@@ -17,12 +19,6 @@ Topic images then mount this mirror at build time; when they run `spack install`
    ```
    This downloads source tarballs into `docker/spack-mirror-cache/` (bind-mounted at `/opt/spack-mirror`).
 
-3. Build topic images with the mirror mounted so `spack install` fetches sources from the mirror and builds locally:
-   ```bash
-   DOCKER_BUILDKIT=1 ./scripts/build-topics.sh
-   ```
-   Or use `docker compose build`; topic Dockerfiles use `RUN --mount=type=bind,source=spack-mirror-cache,target=/opt/spack-mirror` so the mirror is available when the context is `./docker`.
-
 ## Updating the package list
 
-Edit `packages.txt`, rebuild the spack-mirror image, run the container again to refresh the source mirror, then rebuild topic images.
+Edit `packages.txt`, rebuild the spack-mirror image, run the container again to refresh the source mirror.

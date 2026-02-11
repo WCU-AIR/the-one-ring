@@ -6,6 +6,10 @@ data/*
 docker/spack-mirror-cache/*
 !docker/spack-mirror-cache/.gitkeep
 
+# Shared Spack install store (topic builds write here; subsequent builds reuse)
+docker/spack-store/*
+!docker/spack-store/.gitkeep
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

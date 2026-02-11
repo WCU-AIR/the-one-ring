@@ -4,7 +4,7 @@ FROM linhbngo/onering-amd64:base
 USER root
 
 COPY base/home /build/home/
-COPY csc331/code-server.sh /build/
+COPY ide/code-server.sh /build/
 COPY ide/install.sh /build/
 COPY ide/entrypoint.sh /usr/local/bin/ide-entrypoint.sh
 

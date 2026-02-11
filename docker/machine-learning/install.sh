@@ -4,10 +4,6 @@ set -e
 # shellcheck source=/dev/null
 . /build/bootstrap.sh
 
-if [ -d /opt/spack-mirror ] && [ -n "$(ls -A /opt/spack-mirror 2>/dev/null)" ]; then
-  spack mirror add local file:///opt/spack-mirror 2>/dev/null || true
-fi
-
 spack install python py-numpy py-pandas py-scikit-learn
 
 cat > /etc/profile.d/spack-machine-learning.sh << 'SPACK_LOAD'
@@ -17,3 +13,6 @@ spack load py-numpy
 spack load py-pandas
 spack load py-scikit-learn
 SPACK_LOAD
+
+# Clean Spack stage and caches so they are not kept in the image.
+spack clean -s -c

@@ -5,7 +5,7 @@ After building images (see README.md), use this plan to verify each service imag
 **Prerequisites**
 
 - Images built (at least the ones you want to test).
-- For topic services that use Spack: `spack-mirror` built and mirror populated (source tarballs) so topic builds can fetch from it; tests only verify the **already-built** image.
+- For topic services that use Spack: topic images built (Spack fetches sources from the network; no mirror required). Tests only verify the **already-built** image.
 
 ---
 

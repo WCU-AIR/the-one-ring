@@ -4,10 +4,6 @@ set -e
 # shellcheck source=/dev/null
 . /build/bootstrap.sh
 
-if [ -d /opt/spack-mirror ] && [ -n "$(ls -A /opt/spack-mirror 2>/dev/null)" ]; then
-  spack mirror add local file:///opt/spack-mirror 2>/dev/null || true
-fi
-
 spack install qemu
 
 # openocd and cross-compilers from apt (openocd not in Spack builtin; cross-compilers not in Spack in practice)
@@ -24,3 +20,6 @@ cat > /etc/profile.d/spack-embedded-system.sh << 'SPACK_LOAD'
 spack load qemu
 # openocd from apt, already on PATH
 SPACK_LOAD
+
+# Clean Spack stage and caches so they are not kept in the image.
+spack clean -s -c

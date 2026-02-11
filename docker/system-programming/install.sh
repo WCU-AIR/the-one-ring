@@ -4,11 +4,6 @@ set -e
 # shellcheck source=/dev/null
 . /build/bootstrap.sh
 
-# Use local mirror if present (populate with: docker compose --profile tools run --rm spack-mirror)
-if [ -d /opt/spack-mirror ] && [ -n "$(ls -A /opt/spack-mirror 2>/dev/null)" ]; then
-  spack mirror add local file:///opt/spack-mirror 2>/dev/null || true
-fi
-
 spack install gdb valgrind py-six
 
 # GDB plugin not in Spack
@@ -22,3 +17,6 @@ spack load gdb
 spack load valgrind
 spack load py-six
 SPACK_LOAD
+
+# Clean Spack stage and caches so they are not kept in the image.
+spack clean -s -c
