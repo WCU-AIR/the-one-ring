@@ -36,9 +36,6 @@ DEBIAN_FRONTEND=noninteractive apt install -y \
     libstdc++6 \
     gdb \
     valgrind \
-    python3 \
-    python3-pip \
-    libpython3-dev \
     qemu-system-misc \
     gcc-riscv64-unknown-elf 
 

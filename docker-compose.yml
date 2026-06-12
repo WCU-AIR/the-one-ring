@@ -7,6 +7,7 @@ services:
       - ./workspace:/workspace
     ports:
       - "2222:22"
+    user: "1001:1001"
     hostname: csc331
     container_name: csc331
     deploy:
