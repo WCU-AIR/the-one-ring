@@ -1,0 +1,18 @@
+services:
+  csc331:
+    build:
+      context: ./docker/
+    image: linhbngo/csc331:f2026
+    volumes:
+      - ./workspace:/workspace
+    ports:
+      - "2222:22"
+    hostname: csc331
+    container_name: csc331
+    deploy:
+      resources:
+        limits:
+          cpus: 2.0
+          
+volumes:
+  home:
