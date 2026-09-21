@@ -124,8 +124,11 @@ The image already exports `SPARK_HOME=/opt/spark`, `PYTHONPATH` for `py4j`/`pysp
 from pyspark.sql import SparkSession
 
 spark = SparkSession.builder.appName("demo").getOrCreate()
-spark.sparkContext.defaultParallelism
+sc = spark.sparkContext          # RDD / low-level API entry point
+sc.defaultParallelism            # e.g. total cores across live workers
 ```
+
+`spark` is the DataFrame / SQL entry point; `sc` is the SparkContext for the RDD API used in the `intro-to-pyspark-*` notebooks. Both point at the same running application on `spark://spark-master:7077`.
 
 No `sys.path.insert(...)`, no `os.environ['SPARK_HOME'] = ...`, no `setMaster(...)` required. If you need to override driver/executor memory or cores for a particular notebook, chain `.config("spark.executor.memory", "2g")` etc. onto the builder.
 
@@ -150,15 +153,6 @@ Shared directories:
 | --- | --- | --- |
 | `./apps` | `/opt/spark-apps` | Notebooks, jars, application code (JupyterLab root) |
 | `./data` | `/opt/spark-data` | Input data on every node |
-
-Submit a jar from the master (place the file under `./apps` first):
-
-```sh
-docker exec spark-master /opt/spark/bin/spark-submit \
-  --master spark://spark-master:7077 \
-  --class org.example.App \
-  /opt/spark-apps/your-app.jar
-```
 
 ## Stop
 
