@@ -22,8 +22,11 @@ jupyter lab \
   --port="${JUPYTER_PORT:-8888}" \
   --no-browser \
   --allow-root \
-  --IdentityProvider.token="${JUPYTER_TOKEN:-}" \
+  --ServerApp.token="" \
   --ServerApp.password="" \
+  --ServerApp.password_required=False \
+  --IdentityProvider.token="" \
+  --PasswordIdentityProvider.hashed_password="" \
   --ServerApp.allow_origin="*" \
   --ServerApp.root_dir="${JUPYTER_NOTEBOOK_DIR:-/opt/spark-apps}" \
   &

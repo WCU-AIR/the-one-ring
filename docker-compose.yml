@@ -20,7 +20,6 @@ services:
       SPARK_LOCAL_IP: spark-master
       SPARK_DRIVER_MEMORY: ${SPARK_DRIVER_MEMORY:-1G}
       SPARK_EXECUTOR_MEMORY: ${SPARK_EXECUTOR_MEMORY:-1G}
-      JUPYTER_TOKEN: ${JUPYTER_TOKEN:-}
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://spark-master:8080 >/dev/null"]
       interval: 5s

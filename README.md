@@ -14,19 +14,21 @@ A Spark 4.2.0 standalone cluster for teaching and local development. One image (
 
 ## Build
 
+Clone the repository branch:
+
+```sh
+git config --global core.autocrlf false 
+git clone -b csc467 https://github.com/ngo-classes/the-one-ring
+cd the-one-ring
+```
+
 From the repository root:
 
 ```sh
 docker compose build --no-cache
 ```
 
-Or:
-
-```sh
-./build-images.sh
-```
-
-Both build `spark-master:4.2.0` from `docker/Dockerfile`. Rebuild after you change anything under `docker/` (Dockerfile, `start.sh`, `requirements.txt`, or `spark-defaults.conf`).
+to build `spark-master:4.2.0` from `docker/Dockerfile`. Rebuild after you change anything under `docker/` (Dockerfile, `start.sh`, `requirements.txt`, or `spark-defaults.conf`).
 
 ## Deploy
 
@@ -100,7 +102,6 @@ Edit `.env` in the repository root. Defaults:
 | `SPARK_MASTER_PORT` | `7077` | Host port for the Spark master RPC port |
 | `JUPYTER_PORT` | `8888` | Host port for Jupyter |
 | `SPARK_APP_UI_PORT` | `4040` | Host port for the Spark application UI |
-| `JUPYTER_TOKEN` | empty | Set a token to require login at Jupyter |
 
 Example: 2 cores and 2G per worker:
 
@@ -115,7 +116,9 @@ Keep `SPARK_WORKER_MEMORY` at or below `SPARK_WORKER_MEM_LIMIT` so Spark does no
 
 ## Use the cluster
 
-Jupyter and PySpark already target `spark://spark-master:7077` (`docker/spark-defaults.conf`). In a notebook:
+Open [http://localhost:8888](http://localhost:8888) — JupyterLab loads with no login prompt (token and password are disabled at start) and its file browser is rooted at `/opt/spark-apps`, which is the same directory as `./apps` on the host. Drop a `.ipynb` into `./apps/` and it shows up in the browser immediately.
+
+The image already exports `SPARK_HOME=/opt/spark`, `PYTHONPATH` for `py4j`/`pyspark`, and installs `/opt/spark/conf/spark-defaults.conf` with `spark.master spark://spark-master:7077` plus `spark.driver.host spark-master`. That means a notebook cell can just do:
 
 ```python
 from pyspark.sql import SparkSession
@@ -124,13 +127,28 @@ spark = SparkSession.builder.appName("demo").getOrCreate()
 spark.sparkContext.defaultParallelism
 ```
 
+No `sys.path.insert(...)`, no `os.environ['SPARK_HOME'] = ...`, no `setMaster(...)` required. If you need to override driver/executor memory or cores for a particular notebook, chain `.config("spark.executor.memory", "2g")` etc. onto the builder.
+
+Preinstalled Python stack in the image (pinned in `docker/requirements.txt`, safe against PySpark 4.2's `pandas>=2.2.0,<3.0.0` / `pyarrow>=18.0.0` / `numpy>=1.21` requirements):
+
+| Package | Version |
+| --- | --- |
+| jupyterlab | 4.3.5 |
+| numpy | 2.1.3 |
+| pandas | 2.2.3 |
+| pyarrow | 18.1.0 |
+| scipy | 1.14.1 |
+| matplotlib | 3.9.4 |
+| seaborn | 0.13.2 |
+| flask | 3.0.3 |
+
 Course notebooks that set `SPARK_HOME` to `/spark` still work: `/spark` is a symlink to `/opt/spark`.
 
 Shared directories:
 
 | Host | Container | Purpose |
 | --- | --- | --- |
-| `./apps` | `/opt/spark-apps` | Notebooks, jars, application code |
+| `./apps` | `/opt/spark-apps` | Notebooks, jars, application code (JupyterLab root) |
 | `./data` | `/opt/spark-data` | Input data on every node |
 
 Submit a jar from the master (place the file under `./apps` first):
