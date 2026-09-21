@@ -1,139 +1,151 @@
-# The One Ring framework
+# Spark Cluster with Docker Compose
 
-- This is the aggregation of all other research and education containerized environments. Using multiple Docker compose files, this framework aims to provide users with a dynamic setup that can be quickly extended based on their own teach/learning/researching progress.
+A Spark 4.2.0 standalone cluster for teaching and local development. One image (`spark-master:4.2.0`, from [`apache/spark:4.2.0`](https://hub.docker.com/r/apache/spark)) runs the master plus Jupyter Server. Workers use that same image and register on `spark://spark-master:7077`.
 
-- In this latest update, I rethink how I approach the `ring`. Rather than group them by courses, I have decided 
-to group them by topics, enabling container reuse for related courses (e.g., Computer Systems and Operating Systems). 
-I also adapt the approach used by supercomputing center by moving all software packages into a shared mounted 
-volume. This allows for easier update/modification. 
+| Service | Role |
+| --- | --- |
+| `spark-master` | Spark master, Jupyter Server (Lab), PySpark driver |
+| `spark-worker` | Spark worker; scale this service to add nodes |
 
----
+## Prerequisites
 
-## Overview
+* [Docker](https://docs.docker.com/get-docker/) with Compose v2 (`docker compose version`)
+* Enough RAM for the master plus `N × SPARK_WORKER_MEM_LIMIT` (defaults assume about 1G per worker)
 
-The main compose file organizes services by **topic** and shares state via **home** and a shared **Spack install store** at `/software`. Topic services use the base layer and Spack; they **fetch sources from the network** at build time (no local mirror required) and install into the shared store so subsequent topic builds reuse dependencies. **Caches are cleaned** after each build (apt, Spack stage and cache) to avoid extra storage.
+## Build
 
-### Cloning repository
+From the repository root:
 
-- If you clone into a Windows environment, makes sure that your git is set to keep `LF`:
+```sh
+docker compose build --no-cache
+```
 
-~~~
-git config --global core.autocrlf false
-git clone https://github.com/ngo-classes/the-one-ring
-cd the-one-ring
-~~~
+Or:
 
-### Build order
+```sh
+./build-images.sh
+```
 
-1. **base** – Built first. Minimal runtime: Ubuntu, `sudo`, `openssh-server`, `curl`, `gfortran`, shared user (`student`, uid 1001).
-2. **Topic services** – Each FROM base; Spack fetches **sources from the network** (no mirror required). At build time they mount a **shared Spack install store** at `/software` (`docker/spack-store`); the first topic you build populates it and **subsequent topic builds reuse** already-installed dependencies. Build topics one at a time; later builds are faster. After each topic build, **Spack stage and caches are cleaned** (`spack clean -s -c`) so they are not kept in the image. At runtime, `/software` is the same bind mount so containers see the shared installs. Each topic adds a `/etc/profile.d` script for `spack load`.
-   - **system-programming** – gdb, valgrind, py-six, peda (GDB plugin).
-   - **parallel-computing** – openmpi, python, py-numpy, py-matplotlib, py-mpi4py.
-   - **big-data** – openjdk, python, py-pandas, py-pyarrow.
-   - **machine-learning** – python, py-numpy, py-pandas, py-scikit-learn.
-   - **embedded-system** – qemu (Spack); openocd, cross-compilers (riscv, arm) from apt.
-3. **ide** – FROM base only; runs **code-server**. No Spack.
+Both build `spark-master:4.2.0` from `docker/Dockerfile`. Rebuild after you change anything under `docker/` (Dockerfile, `start.sh`, `requirements.txt`, or `spark-defaults.conf`).
 
-**Optional: spack-mirror** (profile `tools`) – If you want a local source mirror to avoid re-downloading tarballs or for offline use, build and run the spack-mirror service; topic builds do **not** require it by default.
+## Deploy
 
-### Platform
+1. Optional: edit `.env` for cores, memory, and host ports (see below).
+2. Start the cluster. Change `3` to the worker count you want:
 
-- **All images are linux/amd64 only.** On Apple Silicon / ARM hosts, use the same `docker-compose.yml`; Docker will run amd64 images via emulation. ARM-native builds are no longer supported (see `docker-compose.arm.yml`).
+```sh
+docker compose up -d --scale spark-worker=3
+```
 
-### Shared volumes
+Compose builds the image first if it is missing. To force a rebuild on deploy:
 
-- **home** (Docker volume) – Shared across services.
-- **software** – Bind mount `./docker/spack-store` at `/software`; shared **Spack install tree**. Topic builds write here; subsequent builds and all running containers see the same installs. Not in the repo (see `.gitignore`).
-- **data** (host mount) – Default `./data`; override with `DATA_PATH=/path/on/host`.
+```sh
+docker compose up -d --build --scale spark-worker=3
+```
 
-**Cache cleanup:** Each topic build runs `apt clean`, `rm -rf /var/lib/apt/lists/*` (in bootstrap) and `spack clean -s -c` (stage and cache) at the end so build caches are not kept in the image or on disk.
+3. Wait until the master is healthy and workers have started:
 
----
+```sh
+docker compose ps
+```
 
-## Build Process
+`spark-master` should show `healthy`. Each `spark-worker` should be `Up`. Workers join only after the master healthcheck passes.
 
-### Build Logs
+4. Confirm the UIs:
 
-To debug the build process, you can redirect the build log to a build file inside the 
-`logs` directory. It is recommended that you build and test the infrastructure one service at 
-a time. 
+| URL | What you should see |
+| --- | --- |
+| http://localhost:8888 | Jupyter Lab; notebooks from `./apps` |
+| http://localhost:9090 | Spark master UI; your workers listed as **Alive** |
+| http://localhost:4040 | Spark application UI (only while a job is running) |
 
-- Example build service `base` with logging for **Mac/Linux**
+Worker UIs listen on container port `8081`. Docker maps each replica to a random host port. List them with `docker compose ps`.
 
-~~~
-docker compose --progress=plain --ansi=never build base 2>&1 | tee logs/build-base.log
-~~~
+### Logs
 
-- Example build service `base` with logging for **Windows**
+```sh
+docker compose logs -f spark-master
+docker compose logs -f spark-worker
+```
 
-~~~
-docker compose --progress=plain --ansi=never build base 2>&1 | Tee-Object -FilePath .\logs\build-base.log
-~~~
+### Scale after the cluster is already up
 
-### Service: base
+```sh
+docker compose up -d --scale spark-worker=5
+```
 
-Run the following command to build `base`:
+New workers register with the master on their own. Scaling down removes extra worker containers.
 
-~~~
-docker compose --progress=plain --ansi=never build base 2>&1 | tee logs/build-base.log
-~~~
+### Recreate after changing `.env`
 
-Run the following command to test the build:
+Environment variables are applied at container create time:
 
-~~~
-docker compose run --rm base whoami            
-~~~
+```sh
+docker compose up -d --force-recreate --scale spark-worker=3
+```
 
-The final expected outcome is:
+## Configure cores, memory, and ports
 
-~~~
-student
-~~~
+Edit `.env` in the repository root. Defaults:
 
-### Service: spack-mirror (optional)
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `SPARK_WORKER_CORES` | `1` | Cores each worker offers Spark |
+| `SPARK_WORKER_MEMORY` | `1G` | Memory each worker offers Spark |
+| `SPARK_DRIVER_MEMORY` | `1G` | Driver heap (Jupyter / spark-submit) |
+| `SPARK_EXECUTOR_MEMORY` | `1G` | Executor heap |
+| `SPARK_WORKER_CPU_LIMIT` | `1.0` | Docker CPU limit per worker container |
+| `SPARK_WORKER_MEM_LIMIT` | `1G` | Docker memory limit per worker container |
+| `SPARK_MASTER_UI_PORT` | `9090` | Host port for the Spark master UI |
+| `SPARK_MASTER_PORT` | `7077` | Host port for the Spark master RPC port |
+| `JUPYTER_PORT` | `8888` | Host port for Jupyter |
+| `SPARK_APP_UI_PORT` | `4040` | Host port for the Spark application UI |
+| `JUPYTER_TOKEN` | empty | Set a token to require login at Jupyter |
 
-Topic builds **do not require** a local mirror; they fetch sources from the network. If you want a local source mirror (e.g. for offline use or to avoid re-downloading tarballs), use the spack-mirror service (profile `tools`):
+Example: 2 cores and 2G per worker:
 
-~~~bash
-docker compose build base spack-mirror
-docker compose --profile tools run --rm spack-mirror
-~~~
+```env
+SPARK_WORKER_CORES=2
+SPARK_WORKER_MEMORY=2G
+SPARK_WORKER_CPU_LIMIT=2.0
+SPARK_WORKER_MEM_LIMIT=2G
+```
 
-This populates `docker/spack-mirror-cache/` with source tarballs. Topic Dockerfiles no longer mount the mirror by default; you can add it back in the Dockerfile and install script if you want topic builds to use it.
+Keep `SPARK_WORKER_MEMORY` at or below `SPARK_WORKER_MEM_LIMIT` so Spark does not advertise more RAM than Docker allows.
 
-### Services: topical services
+## Use the cluster
 
-Topic images (system-programming, parallel-computing, big-data, machine-learning, embedded-system) can be built **one by name** or all at once using **docker compose**. No mirror required; Spack fetches sources from the network. Requires **base** and the shared store directory `docker/spack-store` (created automatically or add a `.gitkeep`).
+Jupyter and PySpark already target `spark://spark-master:7077` (`docker/spark-defaults.conf`). In a notebook:
 
-**Shared Spack store at `/software`:** Topic builds mount `docker/spack-store` at `/software` and Spack is configured to use it as the install tree. The **first** topic you build installs its packages (and dependencies) into that store. **Later** topic builds see those installs and reuse them instead of rebuilding, so subsequent builds are much faster. At runtime, the same directory is mounted at `/software` so all containers see the shared installs.
+```python
+from pyspark.sql import SparkSession
 
-**Build a single topic** (recommended: build one at a time)
+spark = SparkSession.builder.appName("demo").getOrCreate()
+spark.sparkContext.defaultParallelism
+```
 
-~~~bash
-docker compose --progress=plain --ansi=never build system-programming 2>&1 | tee logs/build-system-programming.log
-~~~
+Course notebooks that set `SPARK_HOME` to `/spark` still work: `/spark` is a symlink to `/opt/spark`.
 
-Then build others; they will reuse packages already in `docker/spack-store`:
+Shared directories:
 
-~~~bash
-docker compose build parallel-computing
-docker compose build big-data
-# ...
-~~~
+| Host | Container | Purpose |
+| --- | --- | --- |
+| `./apps` | `/opt/spark-apps` | Notebooks, jars, application code |
+| `./data` | `/opt/spark-data` | Input data on every node |
 
-**Build all topic services** (long run; later images still reuse the store)
+Submit a jar from the master (place the file under `./apps` first):
 
-~~~bash
-docker compose build
-~~~
+```sh
+docker exec spark-master /opt/spark/bin/spark-submit \
+  --master spark://spark-master:7077 \
+  --class org.example.App \
+  /opt/spark-apps/your-app.jar
+```
 
-Valid service names: `system-programming`, `parallel-computing`, `big-data`, `machine-learning`, `embedded-system`.
+## Stop
 
-**Start services:** e.g. `docker compose up -d ide system-programming parallel-computing`. Override data path: `DATA_PATH=/mnt/shared/data docker compose up -d`.
+```sh
+docker compose down
+```
 
-### Updating the Spack stack
-
-- To add or change packages, edit the topic’s `install.sh` (e.g. `docker/system-programming/install.sh`) and rebuild that topic: `docker compose build system-programming`.
-- Rebuild topic images as needed: `docker compose build [SERVICE]` or `docker compose build`.
-- (Optional) If you use spack-mirror: edit `docker/spack-mirror/packages.txt`, rebuild spack-mirror, run `docker compose --profile tools run --rm spack-mirror`, then rebuild topics.
-
+Add `-v` only if you also want Compose-managed volumes removed. Bind mounts (`./apps`, `./data`) are left as-is.
