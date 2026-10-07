@@ -5,6 +5,7 @@ services:
     image: linhbngo/csc331:f2026
     volumes:
       - ./workspace:/workspace
+      - ../../../csc331:/opt/csc331
     ports:
       - "2222:22"
     user: "1001:1001"
